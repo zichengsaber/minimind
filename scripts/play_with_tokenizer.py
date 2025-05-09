@@ -21,12 +21,12 @@ def check_pretrained_data():
             break
         i += 1
 
-def eval_tokenizer():
+def eval_tokenizer(name:str):
     from transformers import AutoTokenizer
     # 获取当前脚本的绝对路径（如 /path/to/project/scripts/main.py）
     script_dir = os.path.dirname(os.path.abspath(__file__))
     # 计算模型目录的路径：脚本目录的上级目录下的 model 文件夹（即 /path/to/project/model）
-    model_dir = os.path.normpath(os.path.join(script_dir, "../model"))
+    model_dir = os.path.normpath(os.path.join(script_dir, f"../{name}"))
     # 加载预训练的tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_dir)
 
@@ -56,5 +56,5 @@ def eval_tokenizer():
     print('decoder和原始文本是否一致：', response == new_prompt)
 
 if __name__ == "__main__":
-    # eval_tokenizer()
-    check_pretrained_data()
+    eval_tokenizer('tokenizer')
+    # check_pretrained_data()

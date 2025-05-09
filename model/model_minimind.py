@@ -88,6 +88,7 @@ class RMSNorm(torch.nn.Module):
         self.weight = nn.Parameter(torch.ones(dim))
 
     def _norm(self, x):
+        # give the eq of RMSNorm 
         return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
 
     def forward(self, x):
@@ -95,18 +96,19 @@ class RMSNorm(torch.nn.Module):
 
 
 def precompute_freqs_cis(dim: int, end: int = int(32 * 1024), theta: float = 1e6):
-    freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim))
-    t = torch.arange(end, device=freqs.device)
-    freqs = torch.outer(t, freqs).float()
-    freqs_cos = torch.cat([torch.cos(freqs), torch.cos(freqs)], dim=-1)
-    freqs_sin = torch.cat([torch.sin(freqs), torch.sin(freqs)], dim=-1)
+    freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim)) # （dim // 2,） 是偶数
+    t = torch.arange(end, device=freqs.device) # 生成一个从0到end的序列 (end,)
+    freqs = torch.outer(t, freqs).float() # 将t和freqs进行外积，得到一个(end, dim // 2)的矩阵
+    freqs_cos = torch.cat([torch.cos(freqs), torch.cos(freqs)], dim=-1) # (end, dim)
+    freqs_sin = torch.cat([torch.sin(freqs), torch.sin(freqs)], dim=-1) # (end, dim)
     return freqs_cos, freqs_sin
 
 
 def apply_rotary_pos_emb(q, k, cos, sin, position_ids=None, unsqueeze_dim=1):
     def rotate_half(x):
         return torch.cat((-x[..., x.shape[-1] // 2:], x[..., : x.shape[-1] // 2]), dim=-1)
-
+    # q,k 的shape 是 (bsz, seq_len, dim)
+    # cos,sin 的shape 是 (seq_len, dim)
     q_embed = (q * cos.unsqueeze(unsqueeze_dim)) + (rotate_half(q) * sin.unsqueeze(unsqueeze_dim))
     k_embed = (k * cos.unsqueeze(unsqueeze_dim)) + (rotate_half(k) * sin.unsqueeze(unsqueeze_dim))
     return q_embed, k_embed

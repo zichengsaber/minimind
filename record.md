@@ -22,3 +22,7 @@ ln -s /home/aiscuser/.cache/modelscope/hub/datasets/gongjy/minimind_dataset data
 ```
 
 ### train tokenizer
+
+```bash 
+python scripts/train_tokenizer.py
+```
