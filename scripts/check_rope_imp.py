@@ -50,6 +50,19 @@ def apply_rotary_emb_nanogpt(x, freqs_cis):
     return x_out2.type_as(x)
 
 
+def precompute_freqs_cis_llama4(dim: int, end: int, theta: float = 10000.0, use_scaled: bool = False):
+    freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim))
+    t = torch.arange(end, device=freqs.device, dtype=torch.float32)
+    freqs = torch.outer(t, freqs)
+    freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # shape (seq_len, dim//2)) 
+    return freqs_cis
+
+def apply_rotary_emb_llama4(x, freqs_cis):
+    x_cis = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
+    print(freqs_cis.shape)
+    x_out = torch.view_as_real(x_cis * freqs_cis[None, :, None, :]).flatten(3)
+    return x_out.type_as(x)
+
 def test_rope_implementations():
     # 设置小规模的测试参数
     dim = 4  # 头维度
@@ -70,26 +83,25 @@ def test_rope_implementations():
     q_nano = apply_rotary_emb_nanogpt(q, freqs_nano)
     k_nano = apply_rotary_emb_nanogpt(k, freqs_nano)
     
+    # 使用llama4实现
+    freqs_llama4 = precompute_freqs_cis_llama4(dim, seq_len)
+    q_llama4 = apply_rotary_emb_llama4(q, freqs_llama4)
+    k_llama4 = apply_rotary_emb_llama4(k, freqs_llama4)
+    
     # 比较结果
     q_close = torch.allclose(q_mini, q_nano, atol=1e-6)
     k_close = torch.allclose(k_mini, k_nano, atol=1e-6)
+    q_close_llama4 = torch.allclose(q_nano, q_llama4, atol=1e-6)
+    k_close_llama4 = torch.allclose(k_nano, k_llama4, atol=1e-6)
+    print(f"Q embeddings nanogpt vs minimind: {q_close}")
+    print(f"K embeddings nanogpt vs minimind: {k_close}")
+    print(f"Q embeddings nanogpt vs llama4: {q_close_llama4}")
+    print(f"K embeddings nanogpt vs llama4: {k_close_llama4}")
+
     
-    print(f"Q embeddings match: {q_close}")
-    print(f"K embeddings match: {k_close}")
-    
-    if not q_close or not k_close:
-        print("\nDifferences:")
-        if not q_close:
-            print("Q max difference:", torch.max(torch.abs(q_mini - q_nano)).item())
-        if not k_close:
-            print("K max difference:", torch.max(torch.abs(k_mini - k_nano)).item())
-        
-        # 打印部分值进行比较
-        print("\nSample comparison (first element):")
-        print("minimind Q:", q_mini)
-        print("nanogpt Q:", q_nano)
-        print("minimind K:", k_mini)
-        print("nanogpt K:", k_nano)
+    print(q_mini)
+    print(q_nano)
+    print(q_llama4)
     
     return q_close and k_close
 
