@@ -20,3 +20,5 @@ pip install modelscope
 modelscope download --dataset gongjy/minimind_dataset --local_dir dataset
 ln -s /home/aiscuser/.cache/modelscope/hub/datasets/gongjy/minimind_dataset dataset
 ```
+
+### train tokenizer

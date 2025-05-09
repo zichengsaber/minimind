@@ -19,8 +19,8 @@ def train_tokenizer():
             for line in f:
                 data = json.loads(line)
                 yield data['text']
-
-    data_path = '../dataset/minimind_dataset/pretrain_hq.jsonl'
+    script_path = os.path.dirname(os.path.abspath(__file__))
+    data_path = os.path.normpath(os.path.join(script_path, '../dataset/minimind_dataset/pretrain_hq.jsonl'))
 
     # 初始化tokenizer
     tokenizer = Tokenizer(models.BPE())
@@ -52,10 +52,10 @@ def train_tokenizer():
     assert tokenizer.token_to_id("<|im_end|>") == 2
 
     # 保存tokenizer
-    tokenizer_dir = "../model/"
+    tokenizer_dir = os.path.normpath(os.path.join(script_path, "../tokenizer/"))
     os.makedirs(tokenizer_dir, exist_ok=True)
     tokenizer.save(os.path.join(tokenizer_dir, "tokenizer.json"))
-    tokenizer.model.save("../model/")
+    tokenizer.model.save(tokenizer_dir)
 
     # 手动创建配置文件
     config = {
@@ -111,9 +111,12 @@ def train_tokenizer():
 
 def eval_tokenizer():
     from transformers import AutoTokenizer
-
+    # 获取当前脚本的绝对路径（如 /path/to/project/scripts/main.py）
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    # 计算模型目录的路径：脚本目录的上级目录下的 model 文件夹（即 /path/to/project/model）
+    model_dir = os.path.normpath(os.path.join(script_dir, "../model"))
     # 加载预训练的tokenizer
-    tokenizer = AutoTokenizer.from_pretrained("../model/")
+    tokenizer = AutoTokenizer.from_pretrained(model_dir)
 
     messages = [
         {"role": "system", "content": "你是一个优秀的聊天机器人，总是给我正确的回应！"},
@@ -122,7 +125,8 @@ def eval_tokenizer():
     ]
     new_prompt = tokenizer.apply_chat_template(
         messages,
-        tokenize=False
+        tokenize=False,
+        # add_generation_prompt=True
     )
     print(new_prompt)
 
@@ -131,11 +135,14 @@ def eval_tokenizer():
     print('tokenizer实际词表长度：', actual_vocab_size)
 
     model_inputs = tokenizer(new_prompt)
+    print(model_inputs)
     print('encoder长度：', len(model_inputs['input_ids']))
-
+    # keys : input_ids, attention_mask, token_type_ids
     input_ids = model_inputs['input_ids']
     response = tokenizer.decode(input_ids, skip_special_tokens=False)
+    print(response)
     print('decoder和原始文本是否一致：', response == new_prompt)
+
 
 
 def main():
