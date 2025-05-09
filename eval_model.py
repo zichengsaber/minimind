@@ -10,6 +10,10 @@ warnings.filterwarnings('ignore')
 
 
 def init_model(args):
+    """
+    初始化模型和分词器
+    args: 命令行参数
+    """
     tokenizer = AutoTokenizer.from_pretrained('./model/')
     if args.load == 0:
         moe_path = '_moe' if args.use_moe else ''
@@ -27,7 +31,7 @@ def init_model(args):
         if args.lora_name != 'None':
             apply_lora(model)
             load_lora(model, f'./{args.out_dir}/lora/{args.lora_name}_{args.hidden_size}.pth')
-    else:
+    else: # load = 1
         transformers_model_path = './MiniMind2'
         tokenizer = AutoTokenizer.from_pretrained(transformers_model_path)
         model = AutoModelForCausalLM.from_pretrained(transformers_model_path, trust_remote_code=True)
@@ -36,6 +40,10 @@ def init_model(args):
 
 
 def get_prompt_datas(args):
+    """
+    根据模型模式和LoRA类型获取测试提示数据
+    args: 命令行参数
+    """
     if args.model_mode == 0:
         # pretrain模型的接龙能力（无法对话）
         prompt_datas = [
@@ -57,7 +65,7 @@ def get_prompt_datas(args):
                 '我咳嗽已经持续了两周，需要去医院检查吗？',
                 '详细的介绍光速的物理概念。',
                 '推荐一些杭州的特色美食吧。',
-                '请为我讲解“大语言模型”这个概念。',
+                '请为我讲解"大语言模型"这个概念。',
                 '如何理解ChatGPT？',
                 'Introduce the history of the United States, please.'
             ]
@@ -87,6 +95,10 @@ def get_prompt_datas(args):
 
 # 设置可复现的随机种子
 def setup_seed(seed):
+    """
+    设置随机种子以确保结果可复现
+    seed: 随机种子值
+    """
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -97,6 +109,9 @@ def setup_seed(seed):
 
 
 def main():
+    """
+    主函数：解析参数并运行模型评估
+    """
     parser = argparse.ArgumentParser(description="Chat with MiniMind")
     parser.add_argument('--lora_name', default='None', type=str)
     parser.add_argument('--out_dir', default='out', type=str)
@@ -116,7 +131,7 @@ def main():
     # 模型未经过外推微调时，在更长的上下文的chat_template时难免出现性能的明显退化，因此需要注意此处设置
     parser.add_argument('--history_cnt', default=0, type=int)
     parser.add_argument('--load', default=0, type=int, help="0: 原生torch权重，1: transformers加载")
-    parser.add_argument('--model_mode', default=1, type=int,
+    parser.add_argument('--model_mode', default=3, type=int,
                         help="0: 预训练模型，1: SFT-Chat模型，2: RLHF-Chat模型，3: Reason模型，4: RLAIF-Chat模型")
     args = parser.parse_args()
 
