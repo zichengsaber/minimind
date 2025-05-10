@@ -175,6 +175,7 @@ class Attention(nn.Module):
         self.n_local_kv_heads = self.num_key_value_heads
         self.n_rep = self.n_local_heads // self.n_local_kv_heads
         self.head_dim = args.hidden_size // args.num_attention_heads
+        # grouped attention multiple queries share the same key and value
         self.q_proj = nn.Linear(args.hidden_size, args.num_attention_heads * self.head_dim, bias=False)
         self.k_proj = nn.Linear(args.hidden_size, self.num_key_value_heads * self.head_dim, bias=False)
         self.v_proj = nn.Linear(args.hidden_size, self.num_key_value_heads * self.head_dim, bias=False)
@@ -193,23 +194,23 @@ class Attention(nn.Module):
                 attention_mask: Optional[torch.Tensor] = None):
         bsz, seq_len, _ = x.shape
         xq, xk, xv = self.q_proj(x), self.k_proj(x), self.v_proj(x)
-        xq = xq.view(bsz, seq_len, self.n_local_heads, self.head_dim)
-        xk = xk.view(bsz, seq_len, self.n_local_kv_heads, self.head_dim)
-        xv = xv.view(bsz, seq_len, self.n_local_kv_heads, self.head_dim)
+        xq = xq.view(bsz, seq_len, self.n_local_heads, self.head_dim) # (bsz, seq_len, n_heads, head_dim)
+        xk = xk.view(bsz, seq_len, self.n_local_kv_heads, self.head_dim) # (bsz, seq_len, n_kv_heads, head_dim)
+        xv = xv.view(bsz, seq_len, self.n_local_kv_heads, self.head_dim) # (bsz, seq_len, n_kv_heads, head_dim)
 
-        cos, sin = position_embeddings
+        cos, sin = position_embeddings # (seq_len, head_dim)
         xq, xk = apply_rotary_pos_emb(xq, xk, cos[:seq_len], sin[:seq_len])
 
         # kv_cache实现
         if past_key_value is not None:
-            xk = torch.cat([past_key_value[0], xk], dim=1)
-            xv = torch.cat([past_key_value[1], xv], dim=1)
+            xk = torch.cat([past_key_value[0], xk], dim=1) # (bsz, seq_len+past_len, n_kv_heads, head_dim)
+            xv = torch.cat([past_key_value[1], xv], dim=1) # (bsz, seq_len+past_len, n_kv_heads, head_dim)
         past_kv = (xk, xv) if use_cache else None
 
         xq, xk, xv = (
-            xq.transpose(1, 2),
-            repeat_kv(xk, self.n_rep).transpose(1, 2),
-            repeat_kv(xv, self.n_rep).transpose(1, 2)
+            xq.transpose(1, 2), # (bsz, n_heads, seq_len, head_dim)
+            repeat_kv(xk, self.n_rep).transpose(1, 2), # (bsz, n_kv_heads*n_rep, seq_len+past_len, head_dim)
+            repeat_kv(xv, self.n_rep).transpose(1, 2) # (bsz, n_kv_heads*n_rep, seq_len+past_len, head_dim)
         )
 
         if self.flash and seq_len != 1:
