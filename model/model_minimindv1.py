@@ -262,17 +262,17 @@ class MoEGate(nn.Module):
     def __init__(self, config: MiniMindConfig):
         super().__init__()
         self.config = config
-        self.top_k = config.num_experts_per_tok
-        self.n_routed_experts = config.n_routed_experts
+        self.top_k = config.num_experts_per_tok # 每个token选择的前k个专家
+        self.n_routed_experts = config.n_routed_experts # 路由专家数量
 
-        self.scoring_func = config.scoring_func
-        self.alpha = config.aux_loss_alpha
-        self.seq_aux = config.seq_aux
+        self.scoring_func = config.scoring_func # 评分函数类型
+        self.alpha = config.aux_loss_alpha # 辅助损失系数
+        self.seq_aux = config.seq_aux # 序列辅助损失
 
-        self.norm_topk_prob = config.norm_topk_prob
-        self.gating_dim = config.hidden_size
-        self.weight = nn.Parameter(torch.empty((self.n_routed_experts, self.gating_dim)))
-        self.reset_parameters()
+        self.norm_topk_prob = config.norm_topk_prob # 是否归一化topk概率
+        self.gating_dim = config.hidden_size # 门控维度
+        self.weight = nn.Parameter(torch.empty((self.n_routed_experts, self.gating_dim))) # 权重W_g [专家数量，hidden_size]
+        self.reset_parameters() # 初始化权重
 
     def reset_parameters(self) -> None:
         import torch.nn.init as init
@@ -280,19 +280,19 @@ class MoEGate(nn.Module):
 
     def forward(self, hidden_states):
         bsz, seq_len, h = hidden_states.shape
-        hidden_states = hidden_states.view(-1, h)
-        logits = F.linear(hidden_states, self.weight, None)
+        hidden_states = hidden_states.view(-1, h) # 展平为(bsz*seq_len, h)
+        logits = F.linear(hidden_states, self.weight, None) # 线性变换，logits [bsz*seq_len, n_routed_experts]
         if self.scoring_func == 'softmax':
-            scores = logits.softmax(dim=-1)
+            scores = logits.softmax(dim=-1) # 归一化
         else:
             raise NotImplementedError(f'insupportable scoring function for MoE gating: {self.scoring_func}')
-
-        topk_weight, topk_idx = torch.topk(scores, k=self.top_k, dim=-1, sorted=False)
+        # 选择topk个专家
+        topk_weight, topk_idx = torch.topk(scores, k=self.top_k, dim=-1, sorted=False) # topk_weight [bsz*seq_len, topk]
 
         if self.top_k > 1 and self.norm_topk_prob:
             denominator = topk_weight.sum(dim=-1, keepdim=True) + 1e-20
             topk_weight = topk_weight / denominator
-
+        # 训练时计算辅助损失
         if self.training and self.alpha > 0.0:
             scores_for_aux = scores
             aux_topk = self.top_k
